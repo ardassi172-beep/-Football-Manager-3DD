@@ -18,10 +18,18 @@ jobs:
           wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz -O /tmp/templates.tpz
           unzip -oq /tmp/templates.tpz -d /tmp/godot-templates
           cp /tmp/godot-templates/templates/* "$HOME/.local/share/godot/export_templates/4.4.1.stable/"
-      - name: Configure Android SDK and Java
+      - name: Install Android build tools
         run: |
           SDK_JAR="$(find / -path '*/platforms/android-*/android.jar' -print -quit 2>/dev/null)"
           test -n "$SDK_JAR"
+          SDK_DIR="$(dirname "$(dirname "$(dirname "$SDK_JAR")")")"
+          yes | sdkmanager --sdk_root="$SDK_DIR" --licenses >/dev/null
+          sdkmanager --sdk_root="$SDK_DIR" "build-tools;33.0.2" "platform-tools"
+          test -x "$SDK_DIR/build-tools/33.0.2/aapt"
+          echo "Android SDK build tools installed in $SDK_DIR"
+      - name: Configure Android SDK and Java
+        run: |
+          SDK_JAR="$(find / -path '*/platforms/android-*/android.jar' -print -quit 2>/dev/null)"
           SDK_DIR="$(dirname "$(dirname "$(dirname "$SDK_JAR")")")"
           JAVA_BIN="$(readlink -f "$(command -v java)")"
           JAVA_DIR="$(dirname "$(dirname "$JAVA_BIN")")"
@@ -38,25 +46,15 @@ jobs:
         run: |
           mkdir -p "$HOME/.android"
           keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          sed -i "s|\$HOME/.android/debug.keystore|$HOME/.android/debug.keystore|g" export_presets.cfg
-      - name: Validate and export
+      - name: Export APK
         run: |
           mkdir -p build
-          godot --headless --editor --path . --quit --verbose 2>&1 | tee import.log
-          godot --headless --path . --export-debug Android build/Football_Manager_3D.apk --verbose 2>&1 | tee export.log
+          godot --headless --editor --path . --quit
+          godot --headless --path . --export-debug Android build/Football_Manager_3D.apk
           test -s build/Football_Manager_3D.apk
-      - name: Upload diagnostic logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-build-diagnostics
-          path: |
-            import.log
-            export.log
-            ~/.config/godot/editor_settings-4.tres
-          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         if: success()
         with:
           name: Football-Manager-3D-Android
           path: build/Football_Manager_3D.apk
+          if-no-files-found: error
