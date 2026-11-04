@@ -24,8 +24,8 @@ jobs:
           test -n "$SDK_JAR"
           SDK_DIR="$(dirname "$(dirname "$(dirname "$SDK_JAR")")")"
           yes | sdkmanager --sdk_root="$SDK_DIR" --licenses >/dev/null
-          sdkmanager --sdk_root="$SDK_DIR" "build-tools;33.0.2" "platform-tools"
-          test -x "$SDK_DIR/build-tools/33.0.2/aapt"
+          sdkmanager --sdk_root="$SDK_DIR" "platforms;android-35" "build-tools;35.0.0" "platform-tools" "ndk;27.2.12479018" "cmake;3.10.2.XXXXXXX"
+          test -x "$SDK_DIR/build-tools/35.0.0/aapt"
           echo "Android SDK build tools installed in $SDK_DIR"
       - name: Configure Android SDK and Java
         run: |
