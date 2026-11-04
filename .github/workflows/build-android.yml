@@ -16,16 +16,17 @@ jobs:
       image: barichello/godot-ci:4.4.1
     steps:
       - uses: actions/checkout@v4
-      - name: Install Godot Android export templates
+
+      - name: Install official Godot export templates
         run: |
           mkdir -p "$HOME/.local/share/godot/export_templates/4.4.1.stable"
           wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz -O /tmp/templates.tpz
           unzip -oq /tmp/templates.tpz -d /tmp/godot-templates
           cp /tmp/godot-templates/templates/* "$HOME/.local/share/godot/export_templates/4.4.1.stable/"
           test -s "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_source.zip"
-          godot --headless --editor --path . --install-android-build-template --quit
-          test -s ".godot/exported/4.4.1/android_source.zip" || find .godot -type f -name android_source.zip -print
-      - name: Install Android SDK for target ${{ matrix.target_sdk }}
+          echo "Global export template verified"
+
+      - name: Install Android SDK components
         run: |
           SDK_JAR="$(find / -path '*/platforms/android-*/android.jar' -print -quit 2>/dev/null)"
           test -n "$SDK_JAR"
@@ -34,12 +35,15 @@ jobs:
           sdkmanager --sdk_root="$SDK_DIR" "platforms;android-${{ matrix.target_sdk }}" "build-tools;${{ matrix.target_sdk }}.0.0" "platform-tools" "ndk;27.2.12479018" "cmake;3.10.2.4988404"
           test -x "$SDK_DIR/build-tools/${{ matrix.target_sdk }}.0.0/aapt"
           echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
-          echo "SDK=$SDK_DIR"
-      - name: Configure Godot SDK, Java and signing
+          echo "Android SDK verified: $SDK_DIR"
+
+      - name: Configure Godot and install project Android template
+        shell: bash
         run: |
+          set -euxo pipefail
           JAVA_BIN="$(readlink -f "$(command -v java)")"
           JAVA_DIR="$(dirname "$(dirname "$JAVA_BIN")")"
-          mkdir -p "$HOME/.config/godot" "$HOME/.android"
+          mkdir -p "$HOME/.config/godot" "$HOME/.android" .godot/exported/4.4
           cat > "$HOME/.config/godot/editor_settings-4.4.tres" <<EOF
           [gd_resource type="EditorSettings" format=3]
           [resource]
@@ -49,17 +53,39 @@ jobs:
           keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           sed -i "s|^gradle_build/target_sdk=.*|gradle_build/target_sdk=\"${{ matrix.target_sdk }}\"|" export_presets.cfg
           sed -i "s|^keystore/debug=.*|keystore/debug=\"$HOME/.android/debug.keystore\"|" export_presets.cfg
-          test -s "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_source.zip"
+
+          # Godot 4.4 expects the Android Gradle project template in this project cache.
+          unzip -oq "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_source.zip" -d .godot/exported/4.4
+          echo "Installed project template files:"
+          find .godot/exported/4.4 -maxdepth 3 -type f | head -50
+          test -f .godot/exported/4.4/build.gradle
+          test -f .godot/exported/4.4/gradlew
+          test -s "$HOME/.android/debug.keystore"
           grep -E 'gradle_build/target_sdk|keystore/debug=' export_presets.cfg
-      - name: Validate and export APK
+
+      - name: Validate project and export APK
+        shell: bash
         run: |
+          set -euxo pipefail
           mkdir -p build
           godot --headless --editor --path . --quit --verbose 2>&1 | tee build/editor.log
           godot --headless --path . --export-debug Android build/Football_Manager_3D.apk --verbose 2>&1 | tee build/export.log
           test -s build/Football_Manager_3D.apk
-      - uses: actions/upload-artifact@v4
+          file build/Football_Manager_3D.apk
+          unzip -t build/Football_Manager_3D.apk
+
+      - name: Upload APK
         if: success()
+        uses: actions/upload-artifact@v4
         with:
           name: Football-Manager-3D-Android-SDK-${{ matrix.target_sdk }}
           path: build/Football_Manager_3D.apk
           if-no-files-found: error
+
+      - name: Upload diagnostic logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics-SDK-${{ matrix.target_sdk }}
+          path: build/
+          if-no-files-found: ignore
