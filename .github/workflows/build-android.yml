@@ -46,11 +46,16 @@ jobs:
         run: |
           mkdir -p "$HOME/.android"
           keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          sed -i "s|^keystore/debug=.*|keystore/debug=\"$HOME/.android/debug.keystore\"|" export_presets.cfg
+          echo "HOME=$HOME"
+          test -f "$HOME/.android/debug.keystore"
+          grep '^keystore/debug=' export_presets.cfg
+          ls -l "$HOME/.local/share/godot/export_templates/4.4.1.stable"
       - name: Export APK
         run: |
           mkdir -p build
-          godot --headless --editor --path . --quit
-          godot --headless --path . --export-debug Android build/Football_Manager_3D.apk
+          godot --headless --editor --path . --quit --verbose 2>&1 | tee build/editor.log
+          godot --headless --path . --export-debug Android build/Football_Manager_3D.apk --verbose 2>&1 | tee build/export.log
           test -s build/Football_Manager_3D.apk
       - uses: actions/upload-artifact@v4
         if: success()
