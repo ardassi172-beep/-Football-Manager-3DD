@@ -45,14 +45,8 @@ jobs:
           export/android/java_sdk_path = "$JAVA_DIR"
           EOF
           keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          TARGET_SDK="${{ matrix.target_sdk }}" python3 - <<'PY'
-          import os
-          from pathlib import Path
-          p = Path("export_presets.cfg")
-          lines = p.read_text().splitlines()
-          lines = ['gradle_build/target_sdk="' + os.environ["TARGET_SDK"] + '"' if x.startswith("gradle_build/target_sdk=") else 'keystore/debug="' + str(Path.home() / ".android/debug.keystore") + '"' if x.startswith("keystore/debug=") else x for x in lines]
-          p.write_text("\n".join(lines) + "\n")
-          PY
+          sed -i "s|^gradle_build/target_sdk=.*|gradle_build/target_sdk=\"${{ matrix.target_sdk }}\"|" export_presets.cfg
+          sed -i "s|^keystore/debug=.*|keystore/debug=\"$HOME/.android/debug.keystore\"|" export_presets.cfg
           test -s "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_source.zip"
           grep -E 'gradle_build/target_sdk|keystore/debug=' export_presets.cfg
       - name: Validate and export APK
