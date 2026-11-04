@@ -23,6 +23,8 @@ jobs:
           unzip -oq /tmp/templates.tpz -d /tmp/godot-templates
           cp /tmp/godot-templates/templates/* "$HOME/.local/share/godot/export_templates/4.4.1.stable/"
           test -s "$HOME/.local/share/godot/export_templates/4.4.1.stable/android_source.zip"
+          godot --headless --editor --path . --install-android-build-template --quit
+          test -s ".godot/exported/4.4.1/android_source.zip" || find .godot -type f -name android_source.zip -print
       - name: Install Android SDK for target ${{ matrix.target_sdk }}
         run: |
           SDK_JAR="$(find / -path '*/platforms/android-*/android.jar' -print -quit 2>/dev/null)"
